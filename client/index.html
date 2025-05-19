@@ -1,0 +1,32 @@
+<!-- 註冊表單 -->
+<div id="register-form">
+  <input type="text" id="username" placeholder="用戶名">
+  <input type="password" id="password" placeholder="密碼">
+  <button onclick="handleRegister()">註冊</button>
+  <div id="qrcode-container"></div>
+</div>
+
+<!-- 登入表單 -->
+<div id="login-form">
+  <input type="text" id="login-username" placeholder="用戶名">
+  <input type="password" id="login-password" placeholder="密碼">
+  <input type="text" id="otp-code" placeholder="OTP 驗證碼 (選填)">
+  <button onclick="handleLogin()">登入</button>
+</div>
+
+<script type="module">
+  import { registerUser, loginUser } from './auth.js';
+
+  window.handleRegister = async function() {
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    await registerUser(username, password);
+  };
+
+  window.handleLogin = async function() {
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+    // 如果你沒用 2FA，可以不用 otp
+    await loginUser(username, password);
+  };
+</script>

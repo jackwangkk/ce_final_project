@@ -1,0 +1,6 @@
+node_modules/
+config/dummy-db/users.json
+config/dummy-db/files.json
+kms/keys.json
+*.log
+.env
