@@ -24,9 +24,13 @@
   };
 
   window.handleLogin = async function() {
-    const username = document.getElementById('login-username').value;
-    const password = document.getElementById('login-password').value;
-    // 如果你沒用 2FA，可以不用 otp
-    await loginUser(username, password);
-  };
+  const username = document.getElementById('login-username').value;
+  const password = document.getElementById('login-password').value;
+
+  const result = await loginUser(username, password);
+  if (result.success) {
+    // 登入成功後跳轉到檔案管理頁面
+    window.location.href = './file-manager.html';
+  }
+};
 </script>

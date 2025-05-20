@@ -19,13 +19,100 @@ function handleError(error, fallbackMessage = '發生未知錯誤') {
   throw new Error(message);
 }
 
+async function savePrivateKeyToIndexedDB(privateKey, userId) {
+  // 匯出私鑰為 PKCS8 格式
+  const exportedKey = await window.crypto.subtle.exportKey("pkcs8", privateKey);
+
+  // 開啟 IndexedDB
+  const dbRequest = indexedDB.open("KeyStorage", 1);
+
+  dbRequest.onupgradeneeded = function (event) {
+    const db = event.target.result;
+    db.createObjectStore("keys", { keyPath: "id" }); // 建立名為 "keys" 的資料表
+  };
+
+  dbRequest.onsuccess = function (event) {
+    const db = event.target.result;
+    const transaction = db.transaction("keys", "readwrite");
+    const store = transaction.objectStore("keys");
+
+    // 使用 userId 作為 id 儲存私鑰
+    store.put({ id: userId, key: exportedKey });
+    console.log(`私鑰已儲存到 IndexedDB，id: ${userId}`);
+  };
+
+  dbRequest.onerror = function () {
+    console.error("無法存取 IndexedDB");
+  };
+}
+
+async function getPrivateKeyFromIndexedDB(userId) {
+  const dbRequest = indexedDB.open("KeyStorage", 1);
+
+  return new Promise((resolve, reject) => {
+    dbRequest.onsuccess = function (event) {
+      const db = event.target.result;
+      const transaction = db.transaction("keys", "readonly");
+      const store = transaction.objectStore("keys");
+      const getRequest = store.get(userId);
+
+      getRequest.onsuccess = async function () {
+        if (getRequest.result) {
+          const keyBuffer = getRequest.result.key;
+
+          // 匯入私鑰
+          const privateKey = await window.crypto.subtle.importKey(
+            "pkcs8",
+            keyBuffer,
+            { name: "RSA-OAEP", hash: "SHA-256" },
+            true,
+            ["decrypt"]
+          );
+          resolve(privateKey);
+        } else {
+          reject("私鑰不存在");
+        }
+      };
+
+      getRequest.onerror = function () {
+        reject("無法讀取私鑰");
+      };
+    };
+
+    dbRequest.onerror = function () {
+      reject("無法存取 IndexedDB");
+    };
+  });
+}
+
 // 用戶註冊 (含 2FA 初始化)
 export async function registerUser(username, password) {
   try {
+    const keyPair = await window.crypto.subtle.generateKey(
+      {
+        name: "RSA-OAEP",
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: "SHA-256",
+      },
+      true,
+      ["encrypt", "decrypt"]
+    );
+
+    // 儲存私鑰到 IndexedDB
+    await savePrivateKeyToIndexedDB(keyPair.privateKey, username);
+
+    // 匯出公鑰為可傳輸格式
+    const publicKey = await window.crypto.subtle.exportKey("spki", keyPair.publicKey);
+
+    // 將公鑰轉為 Base64 字串
+    const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(publicKey)));
+
+
     const response = await fetch(`${API_BASE}/register`, {
       method: 'POST',
       headers: HEADERS,
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, public_key: publicKeyBase64 }),
     });
 
     if (!response.ok) throw await response.json();

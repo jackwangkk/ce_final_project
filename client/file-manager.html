@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>檔案管理</title>
+</head>
+<body>
+  <h1>檔案管理</h1>
+
+  <!-- 檔案上傳 -->
+  <div id="upload-section">
+    <h2>上傳檔案</h2>
+    <input type="file" id="file-input">
+    <button onclick="handleFileUpload()">上傳</button>
+  </div>
+
+  <!-- 檔案下載 -->
+  <div id="download-section">
+    <h2>下載檔案</h2>
+    <ul id="file-list"></ul>
+  </div>
+
+  <script type="module">
+    import { uploadFile, fetchFileList, downloadFile } from './file-manager.js';
+
+    // 處理檔案上傳
+    window.handleFileUpload = async function() {
+      const fileInput = document.getElementById('file-input');
+      const file = fileInput.files[0];
+      if (file) {
+        await uploadFile(file);
+        alert('檔案上傳成功');
+        loadFileList();
+      } else {
+        alert('請選擇檔案');
+      }
+    };
+
+    // 載入檔案列表
+    async function loadFileList() {
+      const fileList = await fetchFileList();
+      const fileListElement = document.getElementById('file-list');
+      fileListElement.innerHTML = '';
+      fileList.forEach(fileName => {
+        const li = document.createElement('li');
+        li.textContent = fileName;
+        const downloadButton = document.createElement('button');
+        downloadButton.textContent = '下載';
+        downloadButton.onclick = () => downloadFile(fileName);
+        li.appendChild(downloadButton);
+        fileListElement.appendChild(li);
+      });
+    }
+
+    // 初始化檔案列表
+    loadFileList();
+  </script>
+</body>
+</html>
