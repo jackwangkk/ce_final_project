@@ -29,7 +29,7 @@ exports.register = async (req, res) => {
     return res.status(400).json({ error: '用戶已存在' });
   }
   const hash = await bcrypt.hash(password, 10);
-  users.push({ username, password: hash });
+  users.push({ username, password: hash , public_key: req.body.public_key });
   saveUsers(users);
   res.json({ message: '註冊成功' });
 };

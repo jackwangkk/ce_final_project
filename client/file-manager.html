@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Manager</title>
+</head>
+<body>
+  <h1>File Manager</h1>
+
+  <!-- File Upload -->
+  <div id="upload-section">
+    <h2>Upload File</h2>
+    <input type="file" id="file-input">
+    <button onclick="handleFileUpload()">Upload</button>
+  </div>
+
+  <!-- File Download -->
+  <div id="download-section">
+    <h2>Download Files</h2>
+    <ul id="file-list"></ul>
+  </div>
+
+  <script type="module">
+    import { uploadFile, fetchFileList, downloadFile } from './file-manager.js';
+
+    // Handle file upload
+    window.handleFileUpload = async function() {
+      const fileInput = document.getElementById('file-input');
+      const file = fileInput.files[0];
+      if (file) {
+        await uploadFile(file);
+        alert('File uploaded successfully');
+        loadFileList();
+      } else {
+        alert('Please select a file');
+      }
+    };
+
+    // Load file list
+    async function loadFileList() {
+      const fileList = await fetchFileList();
+      const fileListElement = document.getElementById('file-list');
+      fileListElement.innerHTML = '';
+      fileList.forEach(fileName => {
+        const li = document.createElement('li');
+        li.textContent = fileName;
+        const downloadButton = document.createElement('button');
+        downloadButton.textContent = 'Download';
+        downloadButton.onclick = () => downloadFile(fileName);
+        li.appendChild(downloadButton);
+        fileListElement.appendChild(li);
+      });
+    }
+
+    // Initialize file list
+    loadFileList();
+  </script>
+</body>
+</html>
