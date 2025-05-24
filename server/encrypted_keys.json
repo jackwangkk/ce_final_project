@@ -1,0 +1,20 @@
+{
+  "asser": {
+    "2025 CE FinalProject-GoogleCSE.pdf": {
+      "keyId": "a95ac6a7-ee6d-4929-8031-1eebc8ad6318",
+      "encrypted_key": "WItvYvydbxIif6G3dlL0/uEqJYB1GtQS6VtzvncA6u/BZlsLFGgLH1XvIM6HskISzS8aLBgc2UhSp9JMMFL1nbUkhyfU3G1dQVyQ/xfs2OzkXW0NG3R4RqXNZir+kgj9/LTgawUTgJop1AKV+r2Y83omvVt/8XuMXC9jnNg+Sc4UWAPV5ONXCA2NBXFaX6hQ36GEGmYO2F+apkhvPLJETEtYItMCHpGtG7MwPHkjPSl8IL/zxsLoKthGoX4cJ436H2T01YvaGavswD7/KEPg7BFOmuk/tf0fSNcWQLPoQ0y5EjvtT0OmkTLnCAJ+BRUI5UO/5e9HGfZc8dg6wVpsOw==",
+      "iv": "xV4BeU0eZIfuD4VW",
+      "timestamp": "2025-05-24T11:49:49.876Z",
+      "filename": "2025 CE FinalProject-GoogleCSE.pdf"
+    }
+  },
+  "amelia": {
+    "Topics of Kyber and Dulithium.pdf": {
+      "keyId": "2d46c823-84c5-4c26-9692-19a763b99f51",
+      "encrypted_key": "WAIQ/lGLbJvYZkJDOM8m5WKpPmgqqq/ziE9j/we8gpxZS/FBBq77XhJbTlGzObfOx6tlKAzjnj9ZLBQGdQvkmvStgIWMWU/8IXg6S4cR/rYeyriygtJblTegZX8KIpFZlk+j+P0hG56WX/b0rLtsHH4JtJukFR9X+PlSj1JxfM4Sv1lNZdHLlPyWW4qOXbLWDod+XIWfDW4rFT5i1q9wKYChyxn7ET1NgGOKj4chjt8U0exlLiLjhekVfA4f3VwfhGd7BlgnP5zRHtmiHQL8S0kk+dCh7UC73XYloOYEPCSVany6divq5Ccbwt63sMxJcq+c86YgM8MA358O6T8iXg==",
+      "iv": "klDiRuQ7v/P+QHMl",
+      "timestamp": "2025-05-24T11:57:46.033Z",
+      "filename": "Topics of Kyber and Dulithium.pdf"
+    }
+  }
+}

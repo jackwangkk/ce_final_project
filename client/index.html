@@ -1,36 +1,265 @@
-<!-- Registration Form -->
-<div id="register-form">
-  <input type="text" id="username" placeholder="Username">
-  <input type="password" id="password" placeholder="Password">
-  <button onclick="handleRegister()">Register</button>
-  <div id="qrcode-container"></div>
-</div>
-
-<!-- Login Form -->
-<div id="login-form">
-  <input type="text" id="login-username" placeholder="Username">
-  <input type="password" id="login-password" placeholder="Password">
-  <input type="text" id="otp-code" placeholder="OTP Code (Optional)">
-  <button onclick="handleLogin()">Login</button>
-</div>
-
-<script type="module">
-  import { registerUser, loginUser } from './auth.js';
-
-  window.handleRegister = async function() {
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
-    await registerUser(username, password);
-  };
-
-  window.handleLogin = async function() {
-    const username = document.getElementById('login-username').value;
-    const password = document.getElementById('login-password').value;
-
-    const result = await loginUser(username, password);
-    if (result.success) {
-      // Redirect to file manager page after successful login
-      window.location.href = './file-manager.html';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Encrypted File System - Login</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 500px;
+      margin: 50px auto;
+      padding: 20px;
+      background-color: #f5f5f5;
     }
-  };
-</script>
+    .form-container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .form-container h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    .toggle-link {
+      text-align: center;
+      margin-top: 15px;
+      color: #007bff;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .loading {
+      text-align: center;
+      color: #666;
+      margin: 10px 0;
+    }
+    .error {
+      color: #dc3545;
+      background-color: #f8d7da;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .success {
+      color: #155724;
+      background-color: #d4edda;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    #qrcode-container {
+      text-align: center;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center; color: #333;">🔐 Encrypted File System</h1>
+  
+  <!-- Registration Form -->
+  <div id="register-form" class="form-container">
+    <h2>Create Account</h2>
+    <div id="register-status"></div>
+    <input type="text" id="username" placeholder="Username" required>
+    <input type="password" id="password" placeholder="Password" required>
+    <button onclick="handleRegister()" id="register-btn">
+      <span id="register-text">Create Account & Generate Keys</span>
+      <span id="register-loading" style="display: none;">Generating RSA Keys...</span>
+    </button>
+    <div class="toggle-link" onclick="toggleForms()">
+      Already have an account? Sign in
+    </div>
+    <div id="qrcode-container"></div>
+  </div>
+
+  <!-- Login Form -->
+  <div id="login-form" class="form-container" style="display: none;">
+    <h2>Sign In</h2>
+    <div id="login-status"></div>
+    <input type="text" id="login-username" placeholder="Username" required>
+    <input type="password" id="login-password" placeholder="Password" required>
+    <button onclick="handleLogin()" id="login-btn">
+      <span id="login-text">Sign In</span>
+      <span id="login-loading" style="display: none;">Signing in...</span>
+    </button>
+    <div class="toggle-link" onclick="toggleForms()">
+      Need an account? Create one
+    </div>
+  </div>
+
+  <script type="module">
+    import { registerUser, loginUser, getCurrentUser } from './auth_debug.js';
+
+    // Show loading state
+    function setLoading(formType, isLoading) {
+      const btn = document.getElementById(`${formType}-btn`);
+      const text = document.getElementById(`${formType}-text`);
+      const loading = document.getElementById(`${formType}-loading`);
+      
+      btn.disabled = isLoading;
+      text.style.display = isLoading ? 'none' : 'inline';
+      loading.style.display = isLoading ? 'inline' : 'none';
+    }
+
+    // Show status message
+    function showStatus(formType, message, isError = false) {
+      const statusDiv = document.getElementById(`${formType}-status`);
+      statusDiv.innerHTML = `<div class="${isError ? 'error' : 'success'}">${message}</div>`;
+      setTimeout(() => {
+        statusDiv.innerHTML = '';
+      }, 5000);
+    }
+
+    // Toggle between login and register forms
+    window.toggleForms = function() {
+      const registerForm = document.getElementById('register-form');
+      const loginForm = document.getElementById('login-form');
+      
+      if (registerForm.style.display === 'none') {
+        registerForm.style.display = 'block';
+        loginForm.style.display = 'none';
+      } else {
+        registerForm.style.display = 'none';
+        loginForm.style.display = 'block';
+      }
+    };
+
+    // Handle user registration with RSA key generation
+    window.handleRegister = async function() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      
+      // Basic validation
+      if (!username || !password) {
+        showStatus('register', 'Please fill in all fields', true);
+        return;
+      }
+      
+      if (username.length < 3) {
+        showStatus('register', 'Username must be at least 3 characters', true);
+        return;
+      }
+      
+      if (password.length < 6) {
+        showStatus('register', 'Password must be at least 6 characters', true);
+        return;
+      }
+      
+      try {
+        setLoading('register', true);
+        showStatus('register', 'Generating RSA key pair and creating account...');
+        
+        const result = await registerUser(username, password);
+        
+        if (result.success) {
+          showStatus('register', 'Account created successfully! You can now sign in.');
+          // Clear form
+          document.getElementById('username').value = '';
+          document.getElementById('password').value = '';
+          // Switch to login form after 2 seconds
+          setTimeout(() => {
+            toggleForms();
+            document.getElementById('login-username').value = username;
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Registration error:', error);
+        showStatus('register', `Registration failed: ${error.message}`, true);
+      } finally {
+        setLoading('register', false);
+      }
+    };
+
+    // Handle user login
+    window.handleLogin = async function() {
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value;
+      
+      // Basic validation
+      if (!username || !password) {
+        showStatus('login', 'Please fill in all fields', true);
+        return;
+      }
+      
+      try {
+        setLoading('login', true);
+        showStatus('login', 'Signing in...');
+        
+        const result = await loginUser(username, password);
+        
+        if (result.success) {
+          showStatus('login', 'Login successful! Redirecting...');
+          // Store current username for file operations
+          localStorage.setItem('currentUser', username);
+          // Redirect to file manager after short delay
+          setTimeout(() => {
+            window.location.href = './file-manager.html';
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        showStatus('login', `Login failed: ${error.message}`, true);
+      } finally {
+        setLoading('login', false);
+      }
+    };
+
+    // Check if user is already logged in
+    async function checkExistingLogin() {
+      try {
+        const currentUser = getCurrentUser();
+        if (currentUser) {
+          console.log('User already logged in, redirecting...');
+          window.location.href = './file-manager.html';
+        }
+      } catch (error) {
+        console.log('No existing login found');
+      }
+    }
+
+    // Initialize page
+    checkExistingLogin();
+    
+    // Handle Enter key in forms
+    document.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        const registerForm = document.getElementById('register-form');
+        const loginForm = document.getElementById('login-form');
+        
+        if (registerForm.style.display !== 'none') {
+          handleRegister();
+        } else if (loginForm.style.display !== 'none') {
+          handleLogin();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

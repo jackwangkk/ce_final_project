@@ -6,55 +6,116 @@
   <title>File Manager</title>
 </head>
 <body>
-  <h1>File Manager</h1>
+  <h1>Encrypted File Manager</h1>
+  
+  <p>Welcome, <span id="username"></span> | <button onclick="logout()">Logout</button></p>
 
   <!-- File Upload -->
-  <div id="upload-section">
+  <div>
     <h2>Upload File</h2>
     <input type="file" id="file-input">
-    <button onclick="handleFileUpload()">Upload</button>
+    <button onclick="handleFileUpload()">Encrypt & Upload</button>
+    <div id="upload-status"></div>
   </div>
 
   <!-- File Download -->
-  <div id="download-section">
-    <h2>Download Files</h2>
+  <div>
+    <h2>Your Files</h2>
+    <button onclick="loadFileList()">Refresh</button>
     <ul id="file-list"></ul>
   </div>
 
   <script type="module">
     import { uploadFile, fetchFileList, downloadFile } from './file-manager.js';
+    import { getCurrentUser, logoutUser } from './auth_debug.js';
+
+    let currentUsername = '';
 
     // Handle file upload
     window.handleFileUpload = async function() {
       const fileInput = document.getElementById('file-input');
       const file = fileInput.files[0];
-      if (file) {
-        await uploadFile(file);
-        alert('File uploaded successfully');
-        loadFileList();
-      } else {
+      
+      if (!file) {
         alert('Please select a file');
+        return;
+      }
+
+      try {
+        document.getElementById('upload-status').textContent = 'Encrypting and uploading...';
+        await uploadFile(file, currentUsername);
+        document.getElementById('upload-status').textContent = 'Upload successful!';
+        fileInput.value = '';
+        loadFileList();
+      } catch (error) {
+        document.getElementById('upload-status').textContent = 'Upload failed: ' + error.message;
+        console.error('Upload error:', error);
       }
     };
 
     // Load file list
-    async function loadFileList() {
-      const fileList = await fetchFileList();
-      const fileListElement = document.getElementById('file-list');
-      fileListElement.innerHTML = '';
-      fileList.forEach(fileName => {
-        const li = document.createElement('li');
-        li.textContent = fileName;
-        const downloadButton = document.createElement('button');
-        downloadButton.textContent = 'Download';
-        downloadButton.onclick = () => downloadFile(fileName);
-        li.appendChild(downloadButton);
-        fileListElement.appendChild(li);
-      });
+    window.loadFileList = async function() {
+      try {
+        const files = await fetchFileList(currentUsername);
+        const fileListElement = document.getElementById('file-list');
+        fileListElement.innerHTML = '';
+        
+        if (files.length === 0) {
+          fileListElement.innerHTML = '<li>No files uploaded yet</li>';
+          return;
+        }
+        
+        files.forEach(filename => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            ${filename} 
+            <button onclick="downloadFile('${filename}')">Download</button>
+          `;
+          fileListElement.appendChild(li);
+        });
+      } catch (error) {
+        document.getElementById('file-list').innerHTML = '<li>Error loading files: ' + error.message + '</li>';
+        console.error('Load files error:', error);
+      }
+    };
+
+    // Download file
+    window.downloadFile = async function(fileName) {
+      try {
+        await downloadFile(fileName, currentUsername);
+      } catch (error) {
+        alert('Download failed: ' + error.message);
+        console.error('Download error:', error);
+      }
+    };
+
+    // Logout
+    window.logout = function() {
+      logoutUser();
+      localStorage.removeItem('currentUser');
+      window.location.href = './index.html';
+    };
+
+    // Initialize
+    function init() {
+      const user = getCurrentUser();
+      if (user) {
+        currentUsername = user.username;
+      } else {
+        currentUsername = localStorage.getItem('currentUser');
+      }
+      
+      if (!currentUsername) {
+        alert('Please log in first');
+        window.location.href = './index.html';
+        return;
+      }
+      
+      document.getElementById('username').textContent = currentUsername;
+      loadFileList();
     }
 
-    // Initialize file list
-    loadFileList();
+    init();
   </script>
 </body>
 </html>
