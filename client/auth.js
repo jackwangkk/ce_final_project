@@ -7,6 +7,7 @@ let authToken = null;
 
 // API base configuration
 const API_BASE = 'http://localhost:8000/api';
+const KMS_BASE = 'http://localhost:9000/api'; // KMS server base URL
 const HEADERS = {
   'Content-Type': 'application/json',
 };
@@ -18,6 +19,99 @@ function handleError(error, fallbackMessage = 'Unknown error occurred') {
   showToast(message, 'error');
   throw new Error(message);
 }
+
+/** 
+ * Save both private and public keys to KMS server
+ * @param {CryptoKey} privateKey - RSA private key
+ * @param {CryptoKey} publicKey - RSA public key
+ * @param {string} userId - User ID
+ * @returns {Promise<void>}
+ */
+async function savePrivateAndPublicKeyToKMS(privateKey, publicKey, userId) {
+  try {
+    console.log('Saving keys to KMS server...');
+    
+    // Export keys to ArrayBuffer
+    const exportedPrivateKey = await window.crypto.subtle.exportKey("pkcs8", privateKey);
+    const exportedPublicKey = await window.crypto.subtle.exportKey("spki", publicKey);
+
+    // Prepare request body
+    const body = {
+      username: userId,
+      publicKey: exportedPublicKey,
+      privateKey: exportedPrivateKey,
+    };
+
+    // Send request to KMS server
+    const response = await fetch(`${KMS_BASE}/store-RSA-Keys`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to save keys to KMS');
+    }
+
+    console.log('Keys saved successfully to KMS');
+  } catch (error) {
+    console.error('Error saving keys to KMS:', error);
+    throw error;
+  }
+}
+
+/**
+ * get private key from KMS server
+ * @param {string} userId - User ID
+ * @returns {Promise<CryptoKey>} RSA private key
+ */
+async function getPrivateKeyFromKMS(userId) {
+  try {
+    const response = await fetch(`${KMS_BASE}/get-RSA-Keys?username=${userId}`);
+    if (!response.ok) {
+      throw new Error('Failed to retrieve private key from KMS');
+    }
+
+    const { privateKey } = await response.json();
+    return await window.crypto.subtle.importKey(
+      "pkcs8",
+      privateKey,
+      { name: "RSA-OAEP", hash: "SHA-256" },
+      true,
+      ["decrypt"]
+    );
+  } catch (error) {
+    console.error('Error retrieving private key from KMS:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get public key from KMS server
+ * @param {string} userId - User ID
+ * @returns {Promise<CryptoKey>} RSA public key
+ * */
+async function getPublicKeyFromKMS(userId) {
+  try {
+    const response = await fetch(`${KMS_BASE}/get-RSA-Keys?username=${userId}`);
+    if (!response.ok) {
+      throw new Error('Failed to retrieve public key from KMS');
+    }
+
+    const { publicKey } = await response.json();
+    return await window.crypto.subtle.importKey(
+      "spki",
+      publicKey,
+      { name: "RSA-OAEP", hash: "SHA-256" },
+      true,
+      ["encrypt"]
+    );
+  } catch (error) {
+    console.error('Error retrieving public key from KMS:', error);
+    throw error;
+  }
+}
+
 
 /**
  * Save private key to IndexedDB
@@ -142,9 +236,12 @@ export async function registerUser(username, password) {
     );
     console.log('RSA key pair generated successfully');
 
-    // Step 2: Save private key to IndexedDB
-    console.log('Saving private key to IndexedDB...');
-    await savePrivateKeyToIndexedDB(keyPair.privateKey, username);
+    // // Step 2: Save private key to IndexedDB
+    // console.log('Saving private key to IndexedDB...');
+    // await savePrivateKeyToIndexedDB(keyPair.privateKey, username);
+    // Step 2: Save private key to KMS
+    console.log('Saving private key to KMS...');
+    await savePrivateAndPublicKeyToKMS(keyPair.privateKey, keyPair.publicKey, username);
 
     // Step 3: Export public key for server
     console.log('Exporting public key...');

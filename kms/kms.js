@@ -1,51 +1,78 @@
-const fs = require('fs');
-const speakeasy = require('speakeasy');
-const path = require('path');
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const kmsController = require('./kmsController');
 
-// 模擬金鑰儲存
-const KEY_DB_PATH = path.join(__dirname, 'keys.json');
+const app = express();
+const PORT = 9000; // KMS server runs on a different port
 
-// 儲存金鑰（接收前端傳來的 RSA 加密後金鑰）
-function storeKey(fileId, wrappedKey, owner, allowedUsers = []) {
-  const keys = loadKeys();
-  
-  keys.push({
-    fileId,
-    wrappedKey: Buffer.from(wrappedKey).toString('base64'), // 轉為可儲存格式
-    owner,
-    allowedUsers,
-    createdAt: new Date().toISOString()
-  });
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
 
-  fs.writeFileSync(KEY_DB_PATH, JSON.stringify(keys, null, 2));
-}
+// ==================== KMS APIs ====================
 
-// 請求金鑰（含 2FA 驗證）
-function requestKey(fileId, userId, otp) {
-  const keys = loadKeys();
-  const keyRecord = keys.find(k => k.fileId === fileId);
-  
-  // 權限檢查
-  if (keyRecord.owner !== userId && !keyRecord.allowedUsers.includes(userId)) {
-    throw new Error('權限不足');
-  }
+// Store RSA keys
+// POST /api/store-RSA-Keys
+// Body: {username, publicKey, privateKey}
+app.post('/api/store-RSA-Keys', (req, res) => {
+  console.log('KMS: Received store-RSA-Keys request');
+  kmsController.storeRSAKey(req, res);
+});
 
-  // 2FA 驗證
-  if (!validateOTP(userId, otp)) {
-    throw new Error('OTP 驗證失敗');
-  }
+// Retrieve RSA keys
+// GET /api/get-RSA-Keys
+// Query: { username }
+app.get('/api/get-RSA-Keys', (req, res) => {
+  console.log('KMS: Received get-RSA-Keys request');
+  kmsController.getRSAKey(req, res);
+});
 
-  return Buffer.from(keyRecord.wrappedKey, 'base64');
-}
+// Get user public key
+// GET /api/user-public-key
+app.get('/api/user-public-key', (req, res) => {
+  console.log('KMS: Received user-public-key request');
+  kmsController.getUserPublicKey(req, res);
+});
 
-// 驗證 OTP（簡化版）
-function validateOTP(userId, otp) {
-  // 實際應從資料庫讀取用戶的 2FA secret
-  const userSecret = get2FASecretFromDB(userId); 
-  return speakeasy.totp.verify({
-    secret: userSecret,
-    encoding: 'base32',
-    token: otp,
-    window: 1 // 允許前後 1 個時間窗
-  });
-}
+// Store encrypted AES key
+// POST /api/store-key
+// Body: { username, filename, encrypted_key, iv }
+app.post('/api/store-key', (req, res) => {
+  console.log('KMS: Received store-key request');
+  kmsController.storeKey(req, res);
+});
+
+// Request encrypted AES key
+// POST /api/request-key  
+// Body: { username, filename }
+app.post('/api/request-key', (req, res) => {
+  console.log('KMS: Received request-key request');
+  kmsController.requestKey(req, res);
+});
+
+// Delete encrypted key
+// DELETE /api/delete-key
+// Body: { username, filename }
+app.delete('/api/delete-key', (req, res) => {
+  console.log('KMS: Received delete-key request');
+  kmsController.deleteKey(req, res);
+});
+
+
+// ==================== SERVER STARTUP ====================
+
+app.listen(PORT, () => {
+  console.log(`KMS Server running at http://localhost:${PORT}`);
+  console.log('KMS APIs are ready to handle requests');
+  console.log('Available endpoints:');
+  console.log('1. POST /api/store-RSA-Keys - Store RSA keys');
+  console.log('2. GET /api/get-RSA-Keys - Retrieve RSA keys');
+  console.log('3. POST /api/store-key - Store encrypted AES key');
+  console.log('4. POST /api/request-key - Request encrypted AES key');
+  console.log('5. DELETE /api/delete-key - Delete encrypted key');
+  console.log('6. GET /api/health - Health check endpoint');
+  console.log('7. GET /api/user-files - List all files for a user');
+  console.log('8. GET /api/files - Get file list');
+  console.log('9. GET /api/health - Health check for KMS');
+});

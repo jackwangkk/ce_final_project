@@ -11,6 +11,11 @@ let currentUser = null;
 let authToken = null;
 
 const API_BASE = 'http://localhost:8000/api';
+const KMS_BASE = 'http://localhost:9000/api';
+
+function arrayBufferToBase64(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}
 
 /**
  * User registration with detailed debugging
@@ -63,7 +68,8 @@ export async function registerUser(username, password) {
 
     // Step 5: Save private key to IndexedDB
     console.log('Step 5: Saving private key to IndexedDB...');
-    await savePrivateKeyToIndexedDB(keyPair.privateKey, username);
+    // await savePrivateKeyToIndexedDB(keyPair.privateKey, username);
+    await saveKeysToKMS(keyPair, username);
     console.log('✅ Private key saved to IndexedDB');
 
     // Step 6: Send to server
@@ -97,6 +103,23 @@ export async function registerUser(username, password) {
     const result = await response.json();
     console.log('✅ Server response:', result);
 
+    // Step 7: Display QR Code
+    console.log('Step 7: Displaying QR Code...');
+    const qrCodeContainer = document.getElementById('qrcode-container');
+    qrCodeContainer.innerHTML = '';
+
+    qrCodeContainer.innerHTML = ''; // 清空之前的內容
+    const qrCodeImage = document.createElement('img');
+    qrCodeImage.src = result.qrCode; // 伺服器返回的 QR Code
+    qrCodeImage.alt = 'QR Code for 2FA';
+    qrCodeImage.style.maxWidth = '100%';
+    qrCodeContainer.appendChild(qrCodeImage);
+
+    setTimeout(() => {
+      qrCodeContainer.innerHTML = ''; // 清空 QR Code
+      console.log('QR Code removed after timeout');
+    }, 200000); // 10 秒後清除
+
     simpleToast('Registration successful!', 'success');
     console.log('=== REGISTRATION COMPLETED SUCCESSFULLY ===');
     
@@ -106,6 +129,41 @@ export async function registerUser(username, password) {
     console.error('❌ REGISTRATION FAILED:', error);
     console.error('Error stack:', error.stack);
     simpleToast(`Registration failed: ${error.message}`, 'error');
+    throw error;
+  }
+}
+
+/**
+ * Save private key and public key to kms server with debugging
+ */
+async function saveKeysToKMS(keyPair, userId) {
+  console.log('Saving keys to KMS server...');
+  
+  try {
+
+    // Prepare request body
+    const body = {
+      username: userId,
+      publicKey: arrayBufferToBase64(await window.crypto.subtle.exportKey("spki", keyPair.publicKey)),
+      privateKey: arrayBufferToBase64(await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey))
+    };
+
+    // Send request to KMS server
+    const response = await fetch(`${KMS_BASE}/store-RSA-Keys`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to save keys to KMS');
+    }
+
+    console.log('Keys saved successfully to KMS');
+  } catch (error) {
+    console.error('Error saving keys to KMS:', error);
     throw error;
   }
 }
@@ -169,7 +227,7 @@ async function savePrivateKeyToIndexedDB(privateKey, userId) {
 /**
  * Simple login function
  */
-export async function loginUser(username, password) {
+export async function loginUser(username, password, otp) {
   console.log('=== STARTING LOGIN ===');
   
   try {
@@ -180,7 +238,7 @@ export async function loginUser(username, password) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, otp }),
     });
 
     console.log('Login response status:', response.status);
@@ -197,14 +255,45 @@ export async function loginUser(username, password) {
     authToken = result.token;
     currentUser = result.user;
 
-    simpleToast('Login successful!', 'success');
-    console.log('=== LOGIN COMPLETED ===');
-    
     return { success: true, user: result.user };
 
   } catch (error) {
     console.error('❌ LOGIN FAILED:', error);
     simpleToast(`Login failed: ${error.message}`, 'error');
+    throw error;
+  }
+}
+
+export async function verifyOTP(username, otp) {
+  console.log('=== STARTING OTP VERIFICATION ===');
+  
+  try {
+    const response = await fetch(`${API_BASE}/verify-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username, otp }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Server error response:', errorText);
+      throw new Error(`Server error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ OTP verification result:', result);
+
+    if (result.verified) {
+      simpleToast('OTP verified successfully!', 'success');
+      return { success: true };
+    } else {
+      throw new Error('Invalid OTP');
+    }
+  } catch (error) {
+    console.error('❌ OTP VERIFICATION FAILED:', error);
+    simpleToast(`OTP verification failed: ${error.message}`, 'error');
     throw error;
   }
 }

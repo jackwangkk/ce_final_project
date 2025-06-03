@@ -1,6 +1,7 @@
 // file_manager.js - Fixed File Manager with Encryption
 
 const API_BASE = 'http://localhost:8000/api';
+const KMS_BASE = 'http://localhost:9000/api';
 
 /**
  * Upload encrypted file
@@ -25,10 +26,13 @@ export async function uploadFile(file, username) {
     );
     
     // Step 2: Get user's public key
-    const pubKeyResponse = await fetch(`${API_BASE}/user-public-key?username=${username}`);
+    const pubKeyResponse = await fetch(`${KMS_BASE}/user-public-key?username=${username}`);
     if (!pubKeyResponse.ok) throw new Error('Failed to get public key');
-    const { public_key } = await pubKeyResponse.json();
-    
+    const responseData = await pubKeyResponse.json();
+    // console.log('Public Key Response:', responseData);
+    const public_key = responseData.publicKey;
+    // console.log('Public Key Base64:', public_key);
+
     // Import public key
     const publicKeyBuffer = Uint8Array.from(atob(public_key), c => c.charCodeAt(0));
     const publicKey = await crypto.subtle.importKey(
@@ -50,8 +54,8 @@ export async function uploadFile(file, username) {
     // Step 4: Store encrypted key in KMS
     const encryptedKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(encryptedAESKey)));
     const ivBase64 = btoa(String.fromCharCode(...iv));
-    
-    const storeKeyResponse = await fetch(`${API_BASE}/store-key`, {
+
+    const storeKeyResponse = await fetch(`${KMS_BASE}/store-key`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -68,14 +72,15 @@ export async function uploadFile(file, username) {
     const formData = new FormData();
     const encryptedBlob = new Blob([encryptedData]);
     formData.append('file', encryptedBlob, `${file.name}.encrypted`);
-    
+    formData.append('username', username); 
+
     const uploadResponse = await fetch(`${API_BASE}/upload`, {
       method: 'POST',
       body: formData,
     });
-    
+
     if (!uploadResponse.ok) throw new Error('File upload failed');
-    
+
     console.log('File uploaded successfully');
     return { success: true };
     
@@ -86,11 +91,11 @@ export async function uploadFile(file, username) {
 }
 
 /**
- * Get file list from KMS
+ * Get file list from Server
  */
 export async function fetchFileList(username) {
   try {
-    const response = await fetch(`${API_BASE}/user-files?username=${username}`);
+    const response = await fetch(`${API_BASE}/files?username=${username}`);
     if (!response.ok) throw new Error('Failed to get file list');
     
     const { files } = await response.json();
@@ -109,7 +114,7 @@ export async function downloadFile(fileName, username) {
     console.log('Starting encrypted file download...');
     
     // Step 1: Get encrypted key from KMS
-    const keyResponse = await fetch(`${API_BASE}/request-key`, {
+    const keyResponse = await fetch(`${KMS_BASE}/request-key`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, filename: fileName }),
@@ -122,10 +127,10 @@ export async function downloadFile(fileName, username) {
     const fileResponse = await fetch(`${API_BASE}/download?file=${encodeURIComponent(fileName + '.encrypted')}`);
     if (!fileResponse.ok) throw new Error('Failed to download file');
     const encryptedFileData = await fileResponse.arrayBuffer();
-    
-    // Step 3: Get private key from IndexedDB
-    const privateKey = await getPrivateKeyFromIndexedDB(username);
-    
+
+    // Step 3: Get private key from KMS
+    const privateKey = await getPrivateKeyFromKMS(username);
+
     // Step 4: Decrypt AES key
     const encryptedKeyBuffer = Uint8Array.from(atob(encrypted_key), c => c.charCodeAt(0));
     const rawAESKey = await crypto.subtle.decrypt(
@@ -207,4 +212,27 @@ async function getPrivateKeyFromIndexedDB(userId) {
     
     dbRequest.onerror = () => reject(new Error("Cannot access IndexedDB"));
   });
+}
+
+async function getPrivateKeyFromKMS(userId) {
+  try {
+    const response = await fetch(`${KMS_BASE}/get-RSA-Keys?username=${userId}`);
+    if (!response.ok) {
+      throw new Error('Failed to retrieve private key from KMS');
+    }
+
+    const responseData = await response.json();
+    const privateKeyBase64 = responseData.privateKey;
+    // console.log('Private Key Base64:', privateKeyBase64);
+    return await window.crypto.subtle.importKey(
+      "pkcs8",
+      Uint8Array.from(atob(privateKeyBase64), c => c.charCodeAt(0)),
+      { name: "RSA-OAEP", hash: "SHA-256" },
+      true,
+      ["decrypt"]
+    );
+  } catch (error) {
+    console.error('Error retrieving private key from KMS:', error);
+    throw error;
+  }
 }

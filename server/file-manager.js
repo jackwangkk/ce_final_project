@@ -22,11 +22,11 @@ function readFileStorage() {
   try {
     initializeFileStorage();
     const data = fs.readFileSync(FILE_PATH, 'utf8');
-    const parsedData = JSON.parse(data);
-    return Array.isArray(parsedData) ? {} : parsedData; // 如果是陣列，返回空物件
-  } catch (error) {
+    return JSON.parse(data);
+  }
+  catch (error) {
     console.error('Error reading file storage:', error);
-    return {}; // 返回空物件作為預設值
+    return [];
   }
 }
 
@@ -94,61 +94,48 @@ exports.getUserFiles = (req, res) => {
  */
 exports.uploadFile = (req, res) => {
   try {
-    //console.log('Received upload request:', req.body); // 打印請求的 body
-    //console.log('Received file:', req.files); // 打印接收到的檔案
-
     const file = req.files.file; // 假設使用 express-fileupload 中間件
     const { username } = req.body;
 
     if (!file || !username) {
-      console.log('Missing required fields: file or username'); // 打印錯誤原因
       return res.status(400).json({
         error: 'Missing required fields: file, username'
       });
     }
 
     const fileStorage = readFileStorage();
-    //console.log('Current file storage:', fileStorage); // 打印目前的檔案存儲狀態
 
     // 如果用戶不存在，創建用戶條目
     if (!fileStorage[username]) {
-      console.log(`Creating new entry for user: ${username}`); // 打印用戶創建訊息
       fileStorage[username] = {};
     }
 
-
     // 生成檔案的唯一 ID
-    const originalFileName = file.name.replace('.encrypted', '');
     const fileId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
-    console.log(`Generated file ID: ${fileId}, Timestamp: ${timestamp}`); // 打印檔案 ID 和時間戳
 
     // 存儲檔案資訊
-    fileStorage[username][originalFileName] = {
+    fileStorage[username][file.name] = {
       fileId: fileId,
-      filename: originalFileName,
+      filename: file.name,
       size: file.size,
       mimetype: file.mimetype,
       timestamp: timestamp
     };
-    //console.log('Updated file storage:', fileStorage); // 打印更新後的檔案存儲狀態
 
     // 更新檔案存儲
     writeFileStorage(fileStorage);
 
     // 將檔案保存到伺服器
     const uploadPath = path.join(__dirname, 'uploads', file.name);
-    console.log(`Saving file to path: ${uploadPath}`); // 打印檔案保存路徑
-
     file.mv(uploadPath, (err) => {
       if (err) {
-        console.error('Error saving file:', err); // 打印保存檔案的錯誤
+        console.error('Error saving file:', err);
         return res.status(500).json({
           error: 'Failed to save file'
         });
       }
 
-      console.log(`File uploaded successfully: ${file.name}`); // 打印成功訊息
       res.status(200).json({
         success: true,
         message: 'File uploaded successfully',
@@ -156,41 +143,45 @@ exports.uploadFile = (req, res) => {
       });
     });
   } catch (error) {
-    console.error('Error in uploadFile:', error); // 打印捕獲的錯誤
+    console.error('Error in uploadFile:', error);
     res.status(500).json({
       error: 'Internal server error',
       details: error.message
     });
   }
 };
-// // 上傳檔案
-// exports.uploadFile = (req, res) => {
-//   const file = req.files.file;
-//   const uploadPath = path.join(__dirname, 'uploads', file.name);
 
-//   file.mv(uploadPath, (err) => {
-//     if (err) {
-//       return res.status(500).send(err);
-//     }
-//     res.json({ message: '檔案上傳成功' });
-//   });
-// };
+// 上傳檔案
+export async function uploadFile(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE}/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('檔案上傳失敗');
+  }
+}
 
 // 下載檔案
-exports.downloadFile = (req, res) => {
-  const fileName = req.query.file;
-  const filePath = path.join(__dirname, 'uploads', fileName);
-
-  res.download(filePath, (err) => {
-    if (err) {
-      return res.status(500).send(err);
-    }
+export async function downloadFile(fileName) {
+  const response = await fetch(`${API_BASE}/download?file=${encodeURIComponent(fileName)}`, {
+    method: 'GET',
   });
-};
 
-// 獲取檔案列表
-exports.getFileList = (req, res) => {
-  const uploadDir = path.join(__dirname, 'uploads');
-  const files = fs.readdirSync(uploadDir);
-  res.json(files);
-};
+  if (!response.ok) {
+    throw new Error('檔案下載失敗');
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}

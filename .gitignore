@@ -1,7 +1,14 @@
 node_modules/
-config/dummy-db/users.json
-config/dummy-db/files.json
-kms/keys.json
+config/
+client/crypto.js
+client/kms-client.js
+client/qrcode.js
+clinet/file-manager-test.html
 client 2/
+server/upload/
+server/kmsController.js
+server/encrypted_keys.json
+kms/keys.json
+test/
 *.log
 .env

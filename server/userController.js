@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const speakeasy = require('speakeasy');
+const qrcode = require('qrcode');
 
 // File to store users
 const USERS_FILE = path.join(__dirname, 'users.json');
@@ -92,13 +94,20 @@ exports.register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     console.log('Password hashed successfully');
     
-    // Create new user object
+    // 生成 2FA 密鑰
+    const secret = speakeasy.generateSecret({ name: `2FA-Test (${username})` });
+    const otpAuthUrl = secret.otpauth_url;
+
+    // 生成 QR Code
+    const qrCode = await qrcode.toDataURL(otpAuthUrl);
+
     const newUser = {
       id: users.length + 1,
       username: username,
       password: hashedPassword,
-      public_key: public_key, // Store RSA public key
-      created_at: new Date().toISOString()
+      public_key: public_key,
+      created_at: new Date().toISOString(),
+      two_factor_secret: secret.base32 // 存儲 2FA 密鑰
     };
     
     // Add user to array and save
@@ -115,8 +124,11 @@ exports.register = async (req, res) => {
         id: newUser.id,
         username: newUser.username,
         created_at: newUser.created_at
-      }
+      },
+      qrCode
     });
+
+    console.log(`User registration completed for: ${username}`);
     
   } catch (error) {
     console.error('Error in register:', error);
@@ -141,7 +153,7 @@ exports.login = async (req, res) => {
   try {
     console.log('Received login request');
     
-    const { username, password } = req.body;
+    const { username, password, otp } = req.body;
     
     // Validate required fields
     if (!username || !password) {
@@ -170,6 +182,24 @@ exports.login = async (req, res) => {
       console.error(`Invalid password for user: ${username}`);
       return res.status(401).json({
         error: 'Invalid username or password'
+      });
+    }
+
+    // 驗證 OTP
+    console.log('store 2FA secret:', user.two_factor_secret);
+    console.log('verifying OTP:', otp);
+
+    const isValidOtp = speakeasy.totp.verify({
+      secret: user.two_factor_secret, // 使用存儲的 2FA 密鑰
+      encoding: 'base32',
+      token: otp,
+      window: 1 // 容忍時間偏移
+    });
+
+    if (!isValidOtp) {
+      console.error(`Invalid OTP for user: ${username}`);
+      return res.status(401).json({
+        error: 'Invalid OTP'
       });
     }
     

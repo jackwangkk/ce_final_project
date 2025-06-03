@@ -105,6 +105,7 @@
     <div id="login-status"></div>
     <input type="text" id="login-username" placeholder="Username" required>
     <input type="password" id="login-password" placeholder="Password" required>
+    <input type="text" id="login-otp" placeholder="2FA Code (OTP)" required>
     <button onclick="handleLogin()" id="login-btn">
       <span id="login-text">Sign In</span>
       <span id="login-loading" style="display: none;">Signing in...</span>
@@ -175,6 +176,9 @@
       try {
         setLoading('register', true);
         showStatus('register', 'Generating RSA key pair and creating account...');
+
+        const qrcodeContainer = document.getElementById('qrcode-container');
+        qrcodeContainer.innerHTML = ''; // Clear previous QR code
         
         const result = await registerUser(username, password);
         
@@ -187,7 +191,7 @@
           setTimeout(() => {
             toggleForms();
             document.getElementById('login-username').value = username;
-          }, 2000);
+          }, 20000);
         }
       } catch (error) {
         console.error('Registration error:', error);
@@ -197,10 +201,27 @@
       }
     };
 
+    window.handleQRCodeDone = function () {
+      toggleForms(); // 切到登入畫面
+      const username = document.getElementById('username').value.trim();
+      document.getElementById('login-username').value = username;
+    };
+
+//     window.addEventListener('beforeunload', (e) => {
+//   console.log('[DEBUG] 頁面即將 reload 或跳轉');
+//   debugger; // 瀏覽器會停住在這，方便你檢查呼，，叫堆疊
+// });
+
+
     // Handle user login
     window.handleLogin = async function() {
-      const username = document.getElementById('login-username').value.trim();
-      const password = document.getElementById('login-password').value;
+      const usernameInput = document.getElementById('login-username');
+      const passwordInput = document.getElementById('login-password');
+      const otpInput = document.getElementById('login-otp');
+
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      const otp = otpInput.value.trim();
       
       // Basic validation
       if (!username || !password) {
@@ -212,7 +233,7 @@
         setLoading('login', true);
         showStatus('login', 'Signing in...');
         
-        const result = await loginUser(username, password);
+        const result = await loginUser(username, password, otp);
         
         if (result.success) {
           showStatus('login', 'Login successful! Redirecting...');
@@ -226,6 +247,10 @@
       } catch (error) {
         console.error('Login error:', error);
         showStatus('login', `Login failed: ${error.message}`, true);
+
+        usernameInput.value = '';
+        passwordInput.value = '';
+        otpInput.value = '';
       } finally {
         setLoading('login', false);
       }
