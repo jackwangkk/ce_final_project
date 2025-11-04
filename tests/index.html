@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>2FA Test</title>
+</head>
+<body>
+  <h2>Register</h2>
+  <input id="reg-username" placeholder="Username">
+  <button onclick="register()">Register</button>
+  <div id="qrcode"></div>
+
+  <h2>Verify OTP</h2>
+  <input id="ver-username" placeholder="Username">
+  <input id="ver-token" placeholder="6-digit Token">
+  <button onclick="verify()">Verify</button>
+  <div id="result"></div>
+
+  <script>
+    async function register() {
+      const username = document.getElementById('reg-username').value;
+      const res = await fetch('/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
+      const data = await res.json();
+      document.getElementById('qrcode').innerHTML = `<img src="${data.qr}">`;
+    }
+
+    async function verify() {
+      const username = document.getElementById('ver-username').value;
+      const token = document.getElementById('ver-token').value;
+      const res = await fetch('/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, token })
+      });
+      const data = await res.json();
+      document.getElementById('result').textContent = data.verified ? '✅ Success' : '❌ Invalid';
+    }
+  </script>
+</body>
+</html>
